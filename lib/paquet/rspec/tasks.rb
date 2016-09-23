@@ -90,18 +90,22 @@ module Paquet
       end
     end
 
-    def download_file(source, destination)
+    def download_file(source, destination, counter = 10)
+      raise "Too many redirection" if counter == 0
+
       f = File.open(destination, "w")
 
       begin
         uri = URI.parse(source)
-        Net::HTTP.start(uri.host, uri.port) do |http|
-          http.request_get(uri.path) do |response|
-            response.read_body do |chunk|
-              f.write(chunk)
-            end
-          end
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = true
+        response = http.get(uri.path)
+
+        case response
+        when Net::HTTPSuccess then f.write(response.body)
+        when Net::HTTPRedirection then download_file(response['location'], destination, counter)
         end
+
       ensure
         f.close
       end
