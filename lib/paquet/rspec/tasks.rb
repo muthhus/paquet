@@ -11,15 +11,20 @@ module Paquet
   class Gem
     RUBYGEMS_URI = "https://rubygems.org/downloads"
 
-    attr_reader :gems
+    attr_reader :gems, :ignores
 
     def initialize(target_path)
       @target_path = target_path
       @gems = []
+      @ignores = []
     end
 
     def add(name)
       @gems << name
+    end
+
+    def ignore(name)
+      @ignores << name
     end
 
     def pack
@@ -54,6 +59,10 @@ module Paquet
       end
     end
 
+    def ignore?(name)
+      ignores.include?(name)
+    end
+
     def collect_required_gems()
       candidates = []
       @gems.each do |name|
@@ -63,6 +72,8 @@ module Paquet
     end
 
     def resolve_dependencies(name)
+      return [] if ignore?(name)
+
       spec = ::Gem::Specification.find_by_name(name)
       current_dependency = Dependency.new(name, spec.version, spec.platform)
       dependencies = spec.dependencies.select { |dep| dep.type == :runtime }
@@ -75,18 +86,15 @@ module Paquet
     end
 
     def download_gems(required_gems)
-      required_gems.each do |gem|
-        name = if gem.ruby?
-                 "#{gem.name}-#{gem.version}.gem"
-               else
-                 "#{gem.name}-#{gem.version}-#{gem.platform}.gem"
-               end
+      required_gems
+        .collect { |gem| gem.ruby? ? "#{gem.name}-#{gem.version}.gem" : "#{gem.name}-#{gem.version}-#{gem.platform}.gem" }
+        .uniq
+        .each do |name|
+          source = "#{RUBYGEMS_URI}/#{name}"
+          destination = File.join(@target_path, name)
 
-        source = "#{RUBYGEMS_URI}/#{name}"
-        destination = File.join(@target_path, name)
-
-        puts "Vendoring: #{gem}, downloading: #{source}"
-        download_file(source, destination)
+          puts "Vendoring: #{name}, downloading: #{source}"
+          download_file(source, destination)
       end
     end
 
@@ -102,8 +110,10 @@ module Paquet
         response = http.get(uri.path)
 
         case response
-        when Net::HTTPSuccess then f.write(response.body)
-        when Net::HTTPRedirection then download_file(response['location'], destination, counter)
+        when Net::HTTPSuccess
+          f.write(response.body)
+        when Net::HTTPRedirection
+          download_file(response['location'], destination, counter)
         end
 
       ensure
@@ -128,6 +138,10 @@ module Paquet
 
     def pack(name)
       @gem.add(name)
+    end
+
+    def ignore(name)
+      @gem.ignore(name)
     end
   end
 end
