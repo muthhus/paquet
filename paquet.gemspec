@@ -8,6 +8,7 @@ Gem::Specification.new do |spec|
   spec.version       = Paquet::VERSION
   spec.authors       = ["Elastic"]
   spec.email         = ["info@elastic.co"]
+  gem.license       = "Apache License (2.0)"
 
   spec.summary       = %q{Rake helpers to create a uber gem}
   spec.description   = %q{This gem add a few rake tasks to create a uber gems that will be shipped as a zip}
